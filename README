@@ -1,0 +1,62 @@
+This is a mirror of http://www.vim.org/scripts/script.php?script_id=4996
+
+DESCRIPTION
+Vim provides a nice diff-mode; parameters like case- or whitespace-
+insensitivity can be controlled through the 'diffopt' option. However, because
+that option controls both the difference filtering itself as well as the
+visual appearance within Vim, modifying that option on the fly with `:set`
+isn't very comfortable.
+
+This plugin provides a set of :DiffI... commands that enable you to quickly
+toggle the built-in diff filtering options, and adds advanced options for
+filtering blank lines, complete change hunks, lines, ranges, or patterns of
+text.
+
+HOW IT WORKS
+When there's a corresponding command-line option for the "diff" tool, this is
+passed. The filtering of lines, ranges, and patterns is implemented by
+preprocessing the buffers through the external "sed" command.
+
+USAGE
+:DiffOptions            List the currently active diff options.
+
+:DiffIClear             Clear all "ignore ..." diff options.
+
+:DiffIWhiteSpace[!]     Ignore changes in whitespace. [!] for undo.
+
+:DiffICase[!]           Ignore changes in case. [!] for undo.
+
+:DiffIBlankLines[!]     Ignore blank lines. [!] for undo.
+
+:DiffIHunks[!] [{expr}] Ignore change hunks whose lines _all_ match {expr}.
+                        [!] for undo.
+
+:DiffILines[!] [{expr}] Do not consider any lines that match "sed-style"
+                        {expr} in the diff. [!] for undo.
+
+:DiffIRange[!] [{range}]
+                        Do not consider any lines that match the "sed-style"
+                        range specified by {range} in the diff. [!] for undo.
+                        Note that Vim will still highlight additional lines at
+                        the end of the longer buffer.
+
+:DiffIPattern[!] [{expr}]
+                        Do not consider any text that matches {expr}
+                        "sed-style" in the diff (globally, not just the first
+                        match).
+                        [!] for undo, i.e. removing {expr}, or all previously
+                        given patterns.
+                        Note that Vim will still highlight the ignored changes
+                        (should there be another change in the line that is
+                        not covered by {expr}), because it determines that on
+                        its own.
+
+EXAMPLE
+Filter all diff hunks that only consist of comments in a Perl script:
+    :DiffIHunks ^#
+
+Ignore any differences after a line matching "EOF":
+    :DiffIRange /^EOF$/,$
+
+Ignore type differences of "char const" vs. "char" in a C program:
+    :DiffIPattern [ ]const
