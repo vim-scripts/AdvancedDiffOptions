@@ -31,19 +31,22 @@ USAGE
 :DiffIHunks[!] [{expr}] Ignore change hunks whose lines _all_ match {expr}.
                         [!] for undo.
 
-:DiffILines[!] [{expr}] Do not consider any lines that match "sed-style"
-                        {expr} in the diff. [!] for undo.
+                        The following filters go beyond the capabilities of
+                        the diff command itself; they work by preprocessing
+                        the compared files before sending them to diff.
+
+:DiffILines[!] [{expr}] Do not consider any lines that match {expr} in the
+                        diff. [!] for undo.
 
 :DiffIRange[!] [{range}]
-                        Do not consider any lines that match the "sed-style"
-                        range specified by {range} in the diff. [!] for undo.
+                        Do not consider any lines that match the lines
+                        specified by {range} in the diff. [!] for undo.
                         Note that Vim will still highlight additional lines at
                         the end of the longer buffer.
 
 :DiffIPattern[!] [{expr}]
-                        Do not consider any text that matches {expr}
-                        "sed-style" in the diff (globally, not just the first
-                        match).
+                        Do not consider any text that matches {expr} in the
+                        diff (globally, not just the first match).
                         [!] for undo, i.e. removing {expr}, or all previously
                         given patterns.
                         Note that Vim will still highlight the ignored changes

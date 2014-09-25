@@ -4,7 +4,6 @@
 "   - ingo/collections.vim autoload script
 "   - ingo/compat.vim autoload script
 "   - external "diff" command, accessible through the PATH
-"   - external "sed" command, accessible through the PATH
 "
 " Copyright: (C) 2011-2014 Ingo Karkat
 "   The VIM LICENSE applies to this script; see ':help copyright'.
@@ -12,6 +11,13 @@
 " Maintainer:	Ingo Karkat <ingo@karkat.de>
 "
 " REVISION	DATE		REMARKS
+"   2.00.011	25-Sep-2014	Report custom exceptions from the chosen filter
+"				(e.g. when a syntax isn't supported).
+"				Move getting the diff command out of the :silent
+"				execution, to avoid the need for :unsilent.
+"   2.00.010	23-Sep-2014	Factor out filtering of the files to Strategy
+"				prototype object from
+"				g:AdvancedDiffOptions_Strategy.
 "   1.00.009	05-Aug-2014	Globally remove the pattern for 'ipattern'.
 "	008	08-Aug-2013	Move escapings.vim into ingo-library.
 "	007     21-Feb-2013     Move to ingo-library.
@@ -133,10 +139,13 @@ function! s:IsVimSuitabilityCheckPass( fname_in, fname_new )
     \	readfile(a:fname_in, 0, 1)[0] ==# 'line1' &&
     \	readfile(a:fname_new, 0, 1)[0] ==# 'line2'
 endfunction
-function! s:TranslateDiffOpts( diffOpt, isVimSuitabilityCheckPass )
+function! s:TranslateDiffOpts( diffOpt, isVimSuitabilityCheckPass, filter )
     let [l:diffOptName, l:diffOptArg] = matchlist(a:diffOpt, '^\([^=]\+\)\%(=\(.*\)\)\?$')[1:2]
 
-    if l:diffOptName ==# 'icase'
+    let l:filterResult = a:filter.translateDiffOpts(l:diffOptName, l:diffOptArg, a:isVimSuitabilityCheckPass)
+    if type(l:filterResult) == type('')
+	return l:filterResult
+    elseif l:diffOptName ==# 'icase'
 	return '-i'
     elseif l:diffOptName ==# 'iwhite'
 	return '-b'
@@ -144,26 +153,17 @@ function! s:TranslateDiffOpts( diffOpt, isVimSuitabilityCheckPass )
 	return '-b -B'
     elseif l:diffOptName ==# 'ihunk'
 	return '-I ' . (a:isVimSuitabilityCheckPass ? 'doesnotmatch' : ingo#compat#shellescape(l:diffOptArg, 1))
-    elseif l:diffOptName ==# 'ilines'
-	call add(s:sedFilter, '/' . escape((a:isVimSuitabilityCheckPass ? 'doesnotmatch' : l:diffOptArg), '/') . '/s/.*//')
-	return ''
-    elseif l:diffOptName ==# 'irange'
-	call add(s:sedFilter, (a:isVimSuitabilityCheckPass ? '/doesnotmatch/' : l:diffOptArg) . 's/.*//')
-	return ''
-    elseif l:diffOptName ==# 'ipattern'
-	call add(s:sedFilter, 's/' . escape((a:isVimSuitabilityCheckPass ? 'doesnotmatch' : l:diffOptArg), '/') . '//g')
-	return ''
     else
 	return ingo#compat#shellescape(a:diffOpt, 1)
     endif
 endfunction
 function! AdvancedDiffOptions#DiffCmd( diffOptions, fname_in, fname_new, ... )
     let l:isVimSuitabilityCheckPass = s:IsVimSuitabilityCheckPass(a:fname_in, a:fname_new)
-    let s:sedFilter = []
+    let l:filter = deepcopy(g:AdvancedDiffOptions_Strategy)
 
     let l:diffArgs = map(
     \	a:diffOptions,
-    \	's:TranslateDiffOpts(v:val, l:isVimSuitabilityCheckPass)'
+    \	's:TranslateDiffOpts(v:val, l:isVimSuitabilityCheckPass, l:filter)'
     \)
 
     let l:diffCmd = printf('diff -a %s %s %s',
@@ -178,30 +178,20 @@ function! AdvancedDiffOptions#DiffCmd( diffOptions, fname_in, fname_new, ... )
 	let l:diffCmd .= ' > ' . ingo#compat#shellescape(l:fname_out, 1)
     endif
 
-    if ! empty(s:sedFilter)
-	" Clear out, but not delete the filtered lines, so that the overall
-	" numbering isn't disturbed.
-	let l:sedClearExpressions =
-	\   join(
-	\	map(
-	\	    s:sedFilter,
-	\	    '"-e " . ingo#compat#shellescape(v:val, 1)'
-	\	)
-	\   )
+    let l:filterCmd = ''
+    try
+	let l:filterCmd = l:filter.getCommand(a:fname_in, a:fname_new)
+    catch /^AdvancedDiffOptions:/
+	call ingo#msg#CustomExceptionMsg('AdvancedDiffOptions')
+    endtry
 
-	" Assumption: Commands can be chained (on success) via "&&".
-	let l:diffCmd = printf('sed -i %s %s && sed -i %s %s && ',
-	\   l:sedClearExpressions,
-	\   ingo#compat#shellescape(a:fname_in, 1),
-	\   l:sedClearExpressions,
-	\   ingo#compat#shellescape(a:fname_new, 1)
-	\) . l:diffCmd
-    endif
-"****D echomsg l:diffCmd
+    let l:diffCmd = l:filterCmd . l:diffCmd
+"****D echomsg '****' l:diffCmd
     return l:diffCmd
 endfunction
 function! AdvancedDiffOptions#DiffExpr()
-    silent execute '!' . AdvancedDiffOptions#DiffCmd(s:GetAllDiffOptions(), v:fname_in, v:fname_new, v:fname_out)
+    let l:diffCmd = AdvancedDiffOptions#DiffCmd(s:GetAllDiffOptions(), v:fname_in, v:fname_new, v:fname_out)
+    silent execute '!' . l:diffCmd
 endfunction
 
 let &cpo = s:save_cpo
